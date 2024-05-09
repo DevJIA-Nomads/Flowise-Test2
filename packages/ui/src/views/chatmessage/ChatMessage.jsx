@@ -20,12 +20,16 @@ import {
     IconButton,
     InputAdornment,
     OutlinedInput,
-    Typography
+    Typography,
+    CardContent,
+    Stack
 } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
-import { IconCircleDot, IconDownload, IconSend, IconMicrophone, IconPhotoPlus, IconTrash, IconX, IconTool } from '@tabler/icons'
+import { IconCircleDot, IconDownload, IconSend, IconMicrophone, IconPhotoPlus, IconTrash, IconX, IconTool } from '@tabler/icons-react'
 import robotPNG from '@/assets/images/robot.png'
 import userPNG from '@/assets/images/account.png'
+import multiagent_supervisorPNG from '@/assets/images/multiagent_supervisor.png'
+import multiagent_workerPNG from '@/assets/images/multiagent_worker.png'
 import audioUploadSVG from '@/assets/images/wave-sound.jpg'
 
 // project import
@@ -34,12 +38,12 @@ import { MemoizedReactMarkdown } from '@/ui-component/markdown/MemoizedReactMark
 import SourceDocDialog from '@/ui-component/dialog/SourceDocDialog'
 import ChatFeedbackContentDialog from '@/ui-component/dialog/ChatFeedbackContentDialog'
 import StarterPromptsCard from '@/ui-component/cards/StarterPromptsCard'
-import { cancelAudioRecording, startAudioRecording, stopAudioRecording } from './audio-recording'
 import { ImageButton, ImageSrc, ImageBackdrop, ImageMarked } from '@/ui-component/button/ImageButton'
 import CopyToClipboardButton from '@/ui-component/button/CopyToClipboardButton'
 import ThumbsUpButton from '@/ui-component/button/ThumbsUpButton'
 import ThumbsDownButton from '@/ui-component/button/ThumbsDownButton'
 import './ChatMessage.css'
+import { cancelAudioRecording, startAudioRecording, stopAudioRecording } from './audio-recording'
 import './audio-recording.css'
 
 // api
@@ -357,6 +361,15 @@ export const ChatMessage = ({ open, chatflowid, isDialog, previews, setPreviews 
         })
     }
 
+    const updateLastMessageAgentReasoning = (agentReasoning) => {
+        setMessages((prevMessages) => {
+            let allMessages = [...cloneDeep(prevMessages)]
+            if (allMessages[allMessages.length - 1].type === 'userMessage') return allMessages
+            allMessages[allMessages.length - 1].agentReasoning = JSON.parse(agentReasoning)
+            return allMessages
+        })
+    }
+
     const updateLastMessageUsedTools = (usedTools) => {
         setMessages((prevMessages) => {
             let allMessages = [...cloneDeep(prevMessages)]
@@ -468,6 +481,7 @@ export const ChatMessage = ({ open, chatflowid, isDialog, previews, setPreviews 
                             sourceDocuments: data?.sourceDocuments,
                             usedTools: data?.usedTools,
                             fileAnnotations: data?.fileAnnotations,
+                            agentReasoning: data?.agentReasoning,
                             type: 'apiMessage',
                             feedback: null
                         }
@@ -535,6 +549,7 @@ export const ChatMessage = ({ open, chatflowid, isDialog, previews, setPreviews 
                 if (message.sourceDocuments) obj.sourceDocuments = JSON.parse(message.sourceDocuments)
                 if (message.usedTools) obj.usedTools = JSON.parse(message.usedTools)
                 if (message.fileAnnotations) obj.fileAnnotations = JSON.parse(message.fileAnnotations)
+                if (message.agentReasoning) obj.agentReasoning = JSON.parse(message.agentReasoning)
                 if (message.fileUploads) {
                     obj.fileUploads = JSON.parse(message.fileUploads)
                     obj.fileUploads.forEach((file) => {
@@ -656,6 +671,8 @@ export const ChatMessage = ({ open, chatflowid, isDialog, previews, setPreviews 
             socket.on('fileAnnotations', updateLastMessageFileAnnotations)
 
             socket.on('token', updateLastMessage)
+
+            socket.on('agentReasoning', updateLastMessageAgentReasoning)
         }
 
         return () => {
@@ -921,6 +938,106 @@ export const ChatMessage = ({ open, chatflowid, isDialog, previews, setPreviews 
                                                                 </audio>
                                                             )}
                                                         </>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                        {message.agentReasoning && (
+                                            <div style={{ display: 'block', flexDirection: 'row', width: '100%' }}>
+                                                {message.agentReasoning.map((agent, index) => {
+                                                    return (
+                                                        <Card
+                                                            key={index}
+                                                            sx={{
+                                                                border: '1px solid #e0e0e0',
+                                                                borderRadius: `${customization.borderRadius}px`,
+                                                                mb: 1
+                                                            }}
+                                                        >
+                                                            <CardContent>
+                                                                <Stack
+                                                                    sx={{
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'flex-start',
+                                                                        width: '100%'
+                                                                    }}
+                                                                    flexDirection='row'
+                                                                >
+                                                                    <Box sx={{ height: 'auto', pr: 1 }}>
+                                                                        <img
+                                                                            style={{
+                                                                                objectFit: 'cover',
+                                                                                height: '25px',
+                                                                                width: 'auto'
+                                                                            }}
+                                                                            src={
+                                                                                agent.instructions
+                                                                                    ? multiagent_supervisorPNG
+                                                                                    : multiagent_workerPNG
+                                                                            }
+                                                                            alt='agentPNG'
+                                                                        />
+                                                                    </Box>
+                                                                    <div>{agent.agentName}</div>
+                                                                </Stack>
+                                                                {agent.usedTools && (
+                                                                    <div
+                                                                        style={{
+                                                                            display: 'block',
+                                                                            flexDirection: 'row',
+                                                                            width: '100%'
+                                                                        }}
+                                                                    >
+                                                                        {agent.usedTools.map((tool, index) => {
+                                                                            return (
+                                                                                <Chip
+                                                                                    size='small'
+                                                                                    key={index}
+                                                                                    label={tool.tool}
+                                                                                    component='a'
+                                                                                    sx={{ mr: 1, mt: 1 }}
+                                                                                    variant='outlined'
+                                                                                    clickable
+                                                                                    icon={<IconTool size={15} />}
+                                                                                    onClick={() => onSourceDialogClick(tool, 'Used Tools')}
+                                                                                />
+                                                                            )
+                                                                        })}
+                                                                    </div>
+                                                                )}
+                                                                {agent.messages.length > 0 && (
+                                                                    <MemoizedReactMarkdown
+                                                                        remarkPlugins={[remarkGfm, remarkMath]}
+                                                                        rehypePlugins={[rehypeMathjax, rehypeRaw]}
+                                                                        components={{
+                                                                            code({ inline, className, children, ...props }) {
+                                                                                const match = /language-(\w+)/.exec(className || '')
+                                                                                return !inline ? (
+                                                                                    <CodeBlock
+                                                                                        key={Math.random()}
+                                                                                        chatflowid={chatflowid}
+                                                                                        isDialog={isDialog}
+                                                                                        language={(match && match[1]) || ''}
+                                                                                        value={String(children).replace(/\n$/, '')}
+                                                                                        {...props}
+                                                                                    />
+                                                                                ) : (
+                                                                                    <code className={className} {...props}>
+                                                                                        {children}
+                                                                                    </code>
+                                                                                )
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        {agent.messages.length > 1
+                                                                            ? agent.messages.join('\\n')
+                                                                            : agent.messages[0]}
+                                                                    </MemoizedReactMarkdown>
+                                                                )}
+                                                                {agent.instructions && <p>{agent.instructions}</p>}
+                                                                {agent.messages.length === 0 && !agent.instructions && <p>Finished</p>}
+                                                            </CardContent>
+                                                        </Card>
                                                     )
                                                 })}
                                             </div>

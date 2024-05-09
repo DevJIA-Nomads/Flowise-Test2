@@ -30,7 +30,6 @@ type AgentFinish = {
     log: string
 }
 type AgentExecutorOutput = ChainValues
-
 interface AgentExecutorIteratorInput {
     agentExecutor: AgentExecutor
     inputs: Record<string, string>
@@ -351,7 +350,6 @@ export class AgentExecutor extends BaseChain<ChainValues, AgentExecutorOutput> {
             const additional = await this.agent.prepareForOutput(returnValues, steps)
             if (sourceDocuments.length) additional.sourceDocuments = flatten(sourceDocuments)
             if (usedTools.length) additional.usedTools = usedTools
-
             if (this.returnIntermediateSteps) {
                 return { ...returnValues, intermediateSteps: steps, ...additional }
             }
