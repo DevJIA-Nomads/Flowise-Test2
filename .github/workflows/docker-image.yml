@@ -1,8 +1,12 @@
+# Name of the GitHub Actions workflow
 name: Docker Image CI
 
+# Triggers that define when this workflow should be run
 on:
+    # Manually triggered with inputs via the GitHub Actions interface
     workflow_dispatch:
         inputs:
+            # Input parameter for Node.js version used to build the image
             node_version:
                 description: 'Node.js version to build this image with.'
                 type: choice
@@ -10,34 +14,67 @@ on:
                 default: '20'
                 options:
                     - '20'
+            # Input parameter for the image's version tag to be pushed to Docker Hub
             tag_version:
                 description: 'Tag version of the image to be pushed.'
                 type: string
                 required: true
                 default: 'latest'
 
+    # Automatically triggered when a new release is published
+    release:
+        types: [published]  # Trigger on release publication
+
+# Defines the job(s) to be executed as part of the workflow
 jobs:
+    # Single job for building and pushing the Docker image
     docker:
+        # Specifies the virtual environment to run this job on
         runs-on: ubuntu-latest
         steps:
+            # Step 1: Check out the source code from the repository
             - name: Checkout
-              uses: actions/checkout@v4.1.1
+              uses: actions/checkout@v4.1.5
+
+            # Step 2: Set up QEMU, enabling cross-platform builds
             - name: Set up QEMU
               uses: docker/setup-qemu-action@v3.0.0
+
+            # Step 3: Set up Docker Buildx, allowing for multi-platform Docker builds
             - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v3.0.0
+              uses: docker/setup-buildx-action@v3.3.0
+
+            # Step 4: Extract the SEMVER version number from the release tag or take it as it comes from workflow dispatch
+            - name: Extract SEMVER
+              run: |
+                if [ "${{ github.event_name }}" = "release" ]; then
+                  if [[ "${{ github.event.release.tag_name }}" =~ ^flowise@([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+                    echo "SEMVER=${BASH_REMATCH[1]}" >> $GITHUB_ENV
+                  else
+                    echo "Invalid release tag for automation. It should match the pattern 'flowise@X.Y.Z'." >&2
+                    exit 1
+                  fi
+                elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                  echo "SEMVER=${{ github.event.inputs.tag_version }}" >> $GITHUB_ENV
+                fi
+
+            # Step 5: Log in to Docker Hub using credentials stored in GitHub secrets
             - name: Login to Docker Hub
-              uses: docker/login-action@v3
+              uses: docker/login-action@v3.1.0
               with:
                   username: ${{ secrets.DOCKERHUB_USERNAME }}
                   password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            # Step 6: Build and push the Docker image to Docker Hub
             - name: Build and push
               uses: docker/build-push-action@v5.3.0
               with:
                   context: .
                   file: ./docker/Dockerfile
                   build-args: |
-                      NODE_VERSION=${{github.event.inputs.node_version}}
+                      NODE_VERSION=${{ github.event.inputs.node_version || '20' }}
                   platforms: linux/amd64,linux/arm64
                   push: true
-                  tags: flowiseai/flowise:${{github.event.inputs.tag_version}}
+                  cache-from: type=registry,ref=flowiseai/flowise:latest
+                  cache-to: type=registry,ref=flowiseai/flowise:latest,mode=max
+                  tags: flowiseai/flowise:${{ env.SEMVER }}
